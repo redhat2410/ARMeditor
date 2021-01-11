@@ -16,7 +16,7 @@ set _pathBuild=%_pathCurrent%\build
 set _pathToolChain=C:\Users\Public\Documents\.Toolschain
 
 ::link download toolchain and library
-set _linkToolsCompiler="https://codeload.github.com/redhat2410/toolchain_arm/zip/master"
+set _linkToolsCompiler="https://codeload.github.com/redhat2410/toolchain_arm/zip/windows"
 set _linkToolsLibrary="https://codeload.github.com/redhat2410/stdperiph_stm32f10x/zip/master"
 ::check folder lib and tools is exists and download library and tools compiler
 ::search folder toolchain to download toolchain and library stm32f10x for project
@@ -32,7 +32,7 @@ if not exist %_pathToolChain% (
 	tar -xf lib.zip
 	ren stdperiph_stm32f10x-master lib
 	tar -xf tools.zip
-	ren toolchain_arm-master tools
+	ren toolchain_arm-windows tools
 	echo Unzip complete.
 	del lib.zip
 	del tools.zip
@@ -93,15 +93,47 @@ set browser_properties="browse": { "limitSymbolsToIncludedHeaders": true, "path"
 set cStandard="cStandard": "c99",
 set cppStandard="cppStandard": "c++11",
 set compilerPath="compilerPath":"%_pathCC_gcc:\=/%"
-set version_properties="version": 1
+set version_properties="version": 4
 set config_properties={"configurations": [{%name_properties%%include_properties%%browser_properties%%cStandard%%cppStandard%%compilerPath%}],%version_properties%}
 
 echo %config_properties% >> %_path_c_cpp_properties%
 ::###################################
 
-::generate file main.c 
+::Get include path in folder core CMSIS and compile file .c and startup in folder
 
-if not exist %_pathSrcMain% (
-	set contentMain=#include "stm32f10x.h"^& echo.^& echo.int main(void){^& echo.   return 0;^& echo.}
-	echo %contentMain%
+set _temppath=^.
+
+for /f %%f in ('dir /s /a /b "%_pathLibrariesStandard%\*.h"') do (
+	set _tempInc=%%~dpf
+	if !_temppath! NEQ !_tempInc! (
+		set _temppath=!_tempInc!
+		set _pathLibStdIncCMSIS=!_pathLibStdIncCMSIS! -I"!_tempInc!"
+	)
 )
+
+echo %_pathLibStdIncCMSIS%
+
+::compile assembler for startup ARM
+
+set _FLAGS=-Os -ffunction-sections -fdata-sections -Wall -mthumb -mcpu=cortex-m3
+set _FLAG_MCU=-DSTM32F10X_MD_VL
+
+set _pathStartup_Md=%_pathLibrariesStandard%\CMSIS\CM3\DeviceSupport\ST\STM32F10x\startup\arm\startup_stm32f10x_md_vl.S
+
+set _build_asm=%_pathCC_gcc% -x assembler-with-cpp %_FLAGS% %_FLAG_MCU% %_pathLibStdIncCMSIS% -c -o %_pathBuild%\startup_stm32f10x_md.o %_pathStartup_Md%
+
+echo %_build_asm%
+
+
+
+
+
+for /f %%f in ('dir /s /a /b "%_pathLibrariesStandard%\STM32F10x_StdPeriph_Driver\*.h"') do (
+	set _tempInc=%%~dpf
+	if !_temppath! NEQ !_tempInc! (
+		set _temppath=!_tempInc!
+		set _pathLibStdIncStdPeriph=-I"!_tempInc! !_pathLibStdIncStdPeriph!
+	)
+)
+
+@REM echo %_pathLibStdIncStdPeriph%
